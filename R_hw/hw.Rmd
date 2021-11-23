@@ -1,0 +1,129 @@
+
+#7
+##a
+$P(Y=y) = \frac{\lambda^y}{y!}e^{-\lambda},y=0,1,…$
+For Y_1;Y_2; : : : ;Y_n iid Poisson random variables will have a joint frequency function that is
+a product of the marginal frequency functions, the log likelihood will thus be:
+$l(\lambda)=\sum_{i=1}^n(Y_ilog\lambda-\lambda-logY_i!)$
+$=log\lambda\sum_{i=1}^nY_i-n\lambda-\sum_{i=1}^nlogY_i!$
+We need to find the maximum by finding the derivative: 
+$l'(\lambda) = \frac{1}{\lambda}\sum_{i=1}^ny_i-n=0$
+Which implies that the estimate should be
+      $\hat{\lambda}=\overline{y}$
+      as Poisson distrabution we know
+      $\lambda=\hat{\mu}$
+      then
+      $\hat{\mu}=\overline{y}$
+      
+##b
+```{r}
+set.seed(1111)
+sample <- rpois(30,10)
+mean(sample)
+var(sample)
+sum(sample)
+```
+
+
+```{r}
+#gamma(x1+1)…gamma(xn+1)
+ga<-function(x){
+ga<-1
+for(i in 1:length(x)){
+ga<-ga*gamma(x[i]+1)
+}
+ga
+}
+```
+
+
+```{r}
+hist(sample)
+```
+
+
+```{r}
+#gamma(x1+1)…gamma(xn+1)
+ga(sample)
+```
+
+
+```{r}
+f<-function(lambda){f = (lambda)-30*lambda+309*log(lambda)-log(4.315389*10^211)
+return(-f)
+  }
+```
+
+
+```{r}
+samp <- nlminb(start=10,objective=f,lower=8,upper=12)
+```
+
+
+```{r}
+mu_hat<-samp$par
+as.vector(sample)
+
+```
+```{r}
+x=seq(6,18,by = 2)
+
+```
+```{r}
+#HIstogram & the redline is $\mu_hat$
+hist(sample,freq = F)
+abline(v = mu_hat,col = 'red')
+```
+##c
+```{r}
+plot(sample)
+```
+
+
+###1
+```{r}
+down1 = as.numeric(-1.96*(mu_hat/30)^(1/2)+mu_hat)
+up1 = as.numeric(1.96*(mu_hat/30)^(1/2)+mu_hat)
+
+```
+$[-1.96\sqrt{Var(\hat{\mu})/n}+\hat\mu,1.96\sqrt{Var(\hat{\mu})/n}+\hat\mu]=$[down1,up1]
+###2
+```{r}
+down2 = as.numeric(-1.96*(mu_hat/30)^(1/2)+mu_hat)
+up2 = as.numeric(1.96*(mu_hat/30)^(1/2)+mu_hat)
+```
+$[\hat{\mu} - 1.96\sqrt{\hat{\mu} / n},\hat{\mu} + 1.96\sqrt{\hat{\mu} / n}]$=[down2,up2]
+###3
+```{r}
+B=5000
+booty = lapply(1:B, function(i) sample(sample, replace = T))
+boot.mean = sapply(booty,mean)
+boot.var = sapply(booty,var)
+boot.t = (boot.mean - mu_hat)/sqrt(boot.var/30)
+a=quantile(boot.t,probs=c(0.025,0.975))
+
+down3=mu_hat+as.numeric(a[1])
+up3=mu_hat+as.numeric(a[2])
+
+```
+#plot
+```{r}
+plot(sample,main = 'Scatterplot',lab=c(10,12,12) )
+down3
+abline(h=c(down1,up1,down2,up2,down3,up3),col = c('red','red','blue','blue','green','green'))
+
+```
+
+
+```{r}
+library(ggplot2)
+sp <- as.data.frame(sample)
+sp$index <- factor(row.names(sp),levels = c(1:30))
+sp= sp[,c(2,1)]
+
+qplot(index,sample,data = sp,ylab = 'number',main = 'scatterplot')+geom_hline(yintercept = c(down1,up1,down2,up2,down3,up3),col = c('red','red','blue','blue','green','green'))+annotate(geom = "text", x = 20, y = 20, hjust = 0,
+    label="95%CI q1&q2-beteween the blue lines
+    q3 beteween the green lines","rect", ymin=down1, ymax=up1, alpha=.1,fill="blue")
+```
+
+

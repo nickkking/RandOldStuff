@@ -1,0 +1,268 @@
+---
+title: "st2"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r 2.2a}
+library(ggplot2)
+library(mgcv)
+carbonD
+p2=ggplot(data=carbonD)+geom_point(aes(x=timeStep,y=co2))
+p2
+#the data are monthly so the additive model would enable us to add seasonal structure in the mean
+```
+##2.2a
+The model we are fitting
+$$Y_i \sim N(\mu_i,\sigma^{2})$$
+$$\mu_i=\beta_0+f(x_i)$$
+
+```{r 2.2b}
+model2=gam(co2~s(timeStep,k=30),data = carbonD,family = gaussian())
+
+gam.check(model2)
+#the edf is not too close to 9
+
+```
+
+```{r 2.2c}
+
+#predict(model2,newdata=carbonD,type="terms")
+preds <- predict(model2,newdata=data.frame(timeStep=carbonD$timeStep),type='terms')
+
+p2+geom_line(data = data.frame(preds),aes(x=c(1:468),y=preds))
+```
+
+```{r 2.2d}
+length(carbonD$timeStep)
+#pre1998=data.frame(c(469:480))
+pred <- predict(model2,newdata=data.frame(timeStep=c(469:480)),se.fit=T)
+up=pred$fit+1.96*pred$se.fit
+dw=pred$fit-1.96*pred$se.fit
+c2=data.frame(co2=pred$fit,up,dw,month=c(1:12))
+
+ggplot()+geom_line(data = c2,aes(x=month,y=co2),xlim=c(0,12))+geom_ribbon(data=c2,aes(x=c(1:12),y=co2,ymin = dw, ymax = up), alpha = 0.3,color='coral')+scale_x_continuous(name="1998", limits=c(1, 12))
+```
+
+```{r 2.3a}
+ggplot(data=aids)+geom_line(aes(x=date,y=cases))
+model3=gam(cases~s(date,bs="cs"),data = aids)
+gam.check(model3)
+```
+```{r 2.3b}
+dat=aids$date
+pred2=predict(model3,newdata=data.frame(date=dat),se.fit=T)
+up3=pred2$fit+1.96*pred2$se.fit
+dw3=pred2$fit-1.96*pred2$se.fit
+c3=data.frame(date=dat,up=up3,dw=dw3,est=pred2$fit)
+#plot
+ggplot(data = c3)+geom_line(aes(x=date,y=est))+geom_ribbon(aes(x=date,y=est,ymin = dw, ymax = up), alpha = 0.3,color='coral')+scale_x_continuous(name="Quater")+scale_y_continuous(name='Number')
+```
+#2.6(a)
+we can fit the model:
+$$Y_{i,c,w}|\gamma_c\sim Normal(\mu_{c,w},\sigma^{2})~~~~~~i=1,2,3$$
+$$\mu_{c~,~\omega}=\beta_0+\beta_\omega+\gamma_c~~~~~~~~~~~~~\omega=1,2,3,4;~~c=A,B,C$$
+$$\gamma_c~\sim~Normal(0,\sigma_\gamma^2)$$
+
+```{r 2.6a}
+library(lme4)
+##test for fixed effect
+model61=lmer(yield~(1|blend),data=penicillin,REML=F)#fit another model of course without the treat
+
+model62=lmer(yield~treat+(1|blend),data=penicillin,REML=F)
+ll1 <- logLik(model61)
+ll2 <- logLik(model62)
+LRT <- -2*(ll1-ll2)
+LRT <- as.numeric(LRT)
+LRT
+#3 degrees of freedom
+1 - pchisq(LRT,3)#the difference in the models is significant
+```
+```{r 2.6a1}
+#test for the significance of the random effects
+model63 <- glm(yield~treat,data=penicillin)#without random effects
+
+ll3 <- logLik(model63)
+ll2 <- logLik(model62)
+LRT <- -2*(ll3-ll2)
+LRT <- as.numeric(LRT)
+
+1-pchisq(LRT,1,lower.tail=F)
+#The p-value is bigger than 0.05 indicating that we cannot reject H0 implying that the random effects are “not significant”.
+```
+```{r 2.6b}
+###The bootstrapping test is more reliable as it does not rely on any approximations (although nothing wrong with having just used the LRT).
+##test for fixed effect
+sim_LRT <- 1:1000
+Dat <- simulate(model61,1000)
+
+for(i in 1:1000){Mod1 <- lmer(Dat[,i]~(1|blend),data=penicillin,REML=F)
+Mod2 <- lmer(Dat[,i]~treat+(1|blend),data=penicillin,REML=F)
+sim_LRT[i] =(-2)*(logLik(Mod1)-logLik(Mod2)) 
+} 
+
+
+mean(sim_LRT>LRT) ### Calculate p-value (i.e. prop of sim_LRT values greater than LRT)
+
+#[1] 0.42
+
+```
+the p-value is much bigger than 0.05. as the LRT. Of course, we should
+keep the fixed effects in the model.
+
+###################2.5b1################
+the variability in penicilling yield across the blend is not big. However we are testing on the boundary of $\sigma_\gamma^2$so we should use bootstrapping:
+
+```{r 2.5b1}
+##Bootstrap test for random effect
+
+Dat1 <- simulate(model63,1000) ### Simulate 1000 data sets from smaller model
+for(i in 1:1000){ ### start loop
+Mod3 <- glm(Dat1[,i]~treat,data=penicillin) ### Fit model3 to simulated data
+Mod2 <- lmer(Dat1[,i]~treat+(1|blend),data=penicillin,REML=F)
+sim_LRT[i] <- -2*(logLik(Mod3)-logLik(Mod2)) ### Calculate and store LRT
+} ## end loop
+mean(sim_LRT>LRT) ### p-value is 0.034
+#the random effects may be less useful
+```
+
+```{r 2.7a}
+
+model71=glm(test~IQ+ses+Class,data = pupils)
+#summary(model71)
+
+
+```
+             Estimate Std. Error t value Pr(>|t|)    
+IQ            2.19515    0.07268  30.202  < 2e-16 ***
+ses           0.16692    0.01543  10.820  < 2e-16 ***
+As the p_value of the two continuous variables much less than 0.05,
+so they are both significant,and positive to the test scores.
+
+```{r 2.7a1}
+##LRT
+model72=glm(test~IQ+ses+Class,data = pupils)#fit another model without the class 
+
+
+ll1 <- logLik(model71)
+ll2 <- logLik(model72)
+LRT <- 2*(ll1-ll2)
+LRT <- as.numeric(LRT)
+
+#3 degrees of freedom
+1 - pchisq(LRT,2)#[1] 1
+#the difference in the models is not significant
+```
+##2.7(b)i
+1.The class is a random sample from the 131 schools "(but only 1 class per school)".
+2.The class was random sampled from two different grades "in grades 7 and 8".
+3.We know it's not significant in (a)
+##2.7(b)ii
+$$Y_{c}|\gamma_c\sim Normal(\mu_{c},\sigma^{2})~~~~~~$$
+$$\mu_{c~}=\beta_0+\beta_1x_1+\beta_2x2+\gamma_c~~~~~~~~~~~~~c=1:131$$
+$$\gamma_c~\sim~Normal(0,\sigma_\gamma^2)$$
+
+```{r 2.7b(iii)}
+model7b3 <- lmer(test~IQ+ses+(1|Class),data = pupils)
+summary(model7b3)
+#The random effects parameters are known and n = 131, then n-p-1 is 131-2-1 = 128 since there are 2 covariates. So we can use t-tests with on 127 degrees of freedom. The 2.5% and 97.5% quantiles of the t-distribution with 127 degrees of freedom is
+qt(0.975,128)#[1] 1.978671
+qt(0.005,128)#[1] -2.614785
+#so any negative/positive t-values less/greater than 1.978671 or -2.614785 imply significance.
+#Both fixed effexts have a positive significant effect implying IQ has a more important effect.
+```
+
+```{r 2.7b(iv)}
+summary(model7b3)
+#within-class variance = 40.049 
+#between-class variance = 9.212 
+#marginal variance = withing-class variance-between-class variance=30.837
+#Yes
+```
+
+```{r 2.7b(v)}
+summary(model7b3)
+#so the variance of the random effects is 40.049  
+model7b5<- glm(test~IQ+ses,data = pupils)
+summary(model7b5)
+ll3 <- logLik(model7b5)
+ll2 <- logLik(model7b3)
+LRT <- -2*(ll3-ll2)
+LRT <- as.numeric(LRT)
+LRT
+1-pchisq(LRT,2)
+
+
+```
+
+```{r 2.7b(vi)}
+resids <- residuals(model7b3)
+qqnorm(resids,pch=20)
+qqline(resids)
+```
+
+```{r 2.7b(vii)}
+f3=fitted(model7b3)
+f5=fitted(model7b5)
+re3=resid(model7b3)
+re5=resid(model7b5)
+p3=plot(f3,re3,ylab="Deviance residuals",xlab="fitted values",
+main="Residuals vs fitted values",pch=20)+abline(h=0)
+p5=plot(f5,re5,ylab="Deviance residuals",xlab="fitted values",
+main="Residuals vs fitted values",pch=20)+abline(h=0)
+#Figures indicate that the model fits better than the Normal GLM
+```
+
+```{r 2.7(c)i}
+model7c <- lmer(test~ses+(1|IQ)+(1|Class),data = pupils)
+summary(model7c)#IQ           2.25325    0.07138   31.57
+summary(model7b3)
+```
+```{r 2.7(c)ii}
+l7c=logLik(model7c)
+l7b=logLik(model7b3)
+LRT <- 2*(l7c-l7b)
+LRT <- as.numeric(LRT)
+1-pchisq(LRT,1,lower.tail=F)
+#indicating that the difference in the models is significant
+```
+
+#########################2.9(a)########################
+
+1.The Municipality has no meaning, just a code for count
+2.The number of Municipality is allocated randomly  
+
+```{r 2.9(b)}
+hip
+```
+
+```{r 2.9(c)}
+hip$ind=1:nrow(hip)
+library(lme4)
+#############offset###############
+model9c <- glmer( (Nfract)~offset(log(Npop))+sex+ses+(1|ind),data=hip,family = poisson(link="log"))
+
+
+summary(model9c)
+```
+            Estimate Std. Error  z value Pr(>|z|)    
+(Intercept) -4.55632    0.01520 -299.853  < 2e-16 ***
+sex2         0.75996    0.01555   48.881  < 2e-16 ***
+ses2        -0.12211    0.01590   -7.682 1.57e-14 ***
+ses3        -0.04704    0.01819   -2.587  0.00969 ** 
+
+All socio-economic status are significance and negative implying that the higher these indicators are, the less risk for hip fracture.
+```{r 2.9(d)}
+resids <- residuals(model9c)
+qqnorm(resids,pch=20)
+qqline(resids)
+#the model fit the data very well
+```
+```{r 2.9(e)}
+summary(model9c)
+```
+The model is fitted with maximum likelihood and there is no dispersion parameter to estimate, so
+we can read off the p-values of the z-tests exactly like we would in a Binomial GLM. All ses are significance and negative implying that the higher these indicators are, the less chance for hip fracture. the sex indicators varied, male is buried in intercept and negative;female is positive.That means female are more likely get a hip fracture.

@@ -1,0 +1,301 @@
+---
+title: "problem sts"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+load('datasets.RData')
+```
+##1.2
+```{r 1.2}
+#(a)
+library(ggplot2)
+library(forcats)
+dengue$week=fct_inorder(as.factor(dengue$Week))
+ggplot(data = dengue)+geom_point(aes(x = week,y = (Cases)))
+```
+Yes,it's valid.
+
+###1.2.(b)
+The $Y_i$ are independent so the likelihood is a product of the individual pdfs.
+
+$$p(y;\mu,\theta) = {y+\theta-1 \choose y}(\theta/\theta+\mu)^\theta(\mu/\theta+\mu)^y$$
+so the likelihood is:
+$$L(y;\mu,\theta) = \prod_{i=1}^{n} {y+\theta-1 \choose y}(\theta/\theta+\mu_i)^\theta(\mu_i/\theta+\mu_i)^y\\$$
+
+$$\mu_i=e^{(\beta_0+\beta_1x_i)}$$
+and so the log-likelihood is (noting that the log of a product in the sum of the logs):
+
+$$ \ell(y;\mu,\theta) = \sum_{i=1}^{n}[log{y+\theta-1 \choose y}+\theta log(\theta/\theta+\mu_i)+ylog(\mu_i/(\theta+\mu_i))]\\ $$
+$$\ell(y;\beta_0,\beta_1,\theta) = \sum_{i=1}^{n}[log{y+\theta-1 \choose y}+\theta log(\theta)+y(\beta_0+\beta_1x_i)-(y+\theta)log(\theta+e^{(\beta_0+\beta_1x_i)})]\\$$
+
+$$\frac{d\ell(y;\mu,\theta)}{dy} = \sum_{i=1}^{n}[]$$
+###1.2.(c)
+```{r 1.2.(c)}
+mylike<-function(par){
+  result<-(par[1]*log(par[1])+sum(lchoose(dengue$Cases+par[1]-1,dengue$Cases))+sum(dengue$Cases*(par[2]+par[3]*dengue$Time))-sum((dengue$Cases+par[1])*log(par[1]+exp(par[2]+par[3]*dengue$Time))))
+  return(-result)
+}
+```
+###1.2.(d)
+
+```{r 1.2.(d1)}
+ggplot(data = dengue,aes(x =Time,y = log(Cases)))+geom_point()+geom_smooth(data=dengue,aes(x=Time,y=log(Cases)),method = lm)
+```
+where the following initial values seem sensible as Figure above.
+As an Unary linear function we can predicte the beta by the slop and initial value.
+```{r 1.2.(d2)}
+out <- nlm(mylike,p<-c(0.6,5,0.1),hessian = T)
+out
+```
+```{r 1.2(e)}
+##parameters
+out$estimate
+#plot
+dengue$Time
+x=c(1:32)
+mu=4.3214482+0.1175046*x
+mlenb<-data.frame(x,mu)
+t1<-ggplot()+geom_point(data = dengue,aes(x =Time,y = log(Cases)))+geom_line(data=mlenb,aes(x=x,y=mu),color='red')+geom_point(data=mlenb,aes(x=x,y=mu),color='red')
+t1
+```
+
+```{r 1.2(f1)}
+#Stand Error
+ 
+ OIM <- solve(out$hessian)
+ VarianceBeta <- diag(OIM)
+ stand_error <- sqrt(VarianceBeta)
+ 
+ se_Beta0=stand_error[2]
+ se_Beta1=stand_error[3]
+ se_mu=se_Beta0+se_Beta1*0.1175046
+ t1+geom_ribbon(data = dengue,aes(x =Time,y = log(Cases),ymin = mu - 1.96*se_mu,ymax = mu + 1.96*se_mu),color='green',alpha = 0.3)
+
+```
+
+```{r 1.2(f2)}
+#The estimate of beta1 is 0.1175046 and the standard error is 0.3740006 so we construct a hypothesis test H0 :beta1 = 0 vs Ha : beta1 is not 0 with test statistic:
+beta1=0.1175046
+z_t=beta1/se_Beta1
+p_value <- 2*(pnorm(z_t,0,1))
+p_value
+```
+
+which is bigger than 0.05 so H0 is accepted.
+#########################################3
+
+
+```{r 1.2(h)}
+exp(out$estimate[1] + out$estimate[2]*x)
+l=qnbinom(0.025,size=32,mu=mu)
+u=qnbinom(0.975,size=32,mu=mu)
+pd=data.frame(x,l,u)
+t1+geom_line(data=pd,aes(x=x,y = l), linetype = "dashed", color = "green")+geom_line(data=pd,aes(x=x,y = u), color = "green", linetype = "dashed")
+```
+###1.2(i)
+estimated mean is a more suitable way
+
+##1.5
+
+###1.5.(a)(b)
+ inverse Gaussian distribution belongs to the exponential family
+
+$$ f(y;\theta,\phi)=\exp\left\{\frac{y\theta-b(\theta)}{a(\phi)}+c(y,\phi)\right\}. $$
+
+
+The probability density function of inverse Gaussian distribution is
+
+$$ f(y)=\left(\frac{\lambda}{2\pi y^3}\right)^{\frac{1}{2}}\exp\left\{ -\frac{\lambda}{2\mu^2}\frac{(y-\mu)^2}{y} \right\} $$
+
+where $y\gt0$, $\mu\gt0$, and $\lambda\gt0$ and $Y\sim IG(\mu,\lambda).$
+
+Now we can manipulate the probability density function.
+
+$$ f(y)=\exp\left\{\log\left(\frac{\lambda}{2\pi y^3}\right)^{\frac{1}{2}}\right\}\exp\left\{ -\frac{\lambda}{2\mu^2}\frac{(y-\mu)^2}{y} \right\} \\ = \exp\left\{ \frac{1}{2}\log\lambda-\frac{1}{2}\log2\pi y^3 -\frac{\lambda}{2\mu^2}\frac{(y-\mu)^2}{y} \right\}.$$
+Equating two expressions for the log-pdf, $${\frac{y\theta-b(\theta)}{a(\phi)}}{+c(y,\,\phi)}={-\frac{\lambda}{2\mu^2}y+\frac{\lambda}{\mu}}{+\frac12\ln\frac{\lambda}{2\pi y^3}-\frac{\lambda}{2y}}.$$
+
+So take
+$$\phi=\lambda,\,a=\frac{1}{\phi},\,\theta=-\frac{1}{2\mu^2},\,b=-\sqrt{-2\theta},\,c=\frac12\ln\frac{\phi}{2\pi y^3}-\frac{\phi}{2y}.$$
+##1.7
+```{r 1.7a}
+#(a)
+library(ggplot2)
+library(MASS)
+p1_7<-ggplot()+geom_point(data=aids,aes(x=date,y=cases),color='orange')+geom_line()#+scale_x_continuous(breaks=aids$date)
+p1_7
+##yes,the two proposed models are both sensible,and the mean=k*exp(a*x).```
+```
+```{r 1.7b}
+pois_m=glm(cases ~ (date), family = poisson(link = "log"), data = aids)
+ 
+
+
+bt=pois_m$coefficients
+lbd=bt[1]+aids$date*bt[2]
+#Model 1
+pois=predict(pois_m,newdata =aids ,interval = 'confidence', level = 0.95,type='response',se.fit=T)
+pois_l=pois$fit-1.96*pois$se.fit
+pois_u=pois$fit+1.96*pois$se.fit
+pois_pre=cbind(pois_l,pois_u)
+pois=cbind(aids,pois_pre)
+p7b=ggplot()+geom_point(data=aids,aes(x=date,y=cases),color='orange')+geom_line(data=pois,aes(x=date,y=pois_l),color='royalblue',linetype='dashed')+geom_line(data=pois,aes(x=date,y=pois_u),color='royalblue',linetype='dashed')
+
+########################################################
+#Model 2
+norm_m=glm(cases ~ date, family = gaussian(link = "log"), data = aids)
+
+norm=predict(norm_m,aids,interval='confidence',level=0.95,type='response',se.fit=T)
+norm_l=norm$fit-1.96*norm$se.fit
+norm_u=norm$fit+1.96*norm$se.fit
+norm_pre=cbind(norm_l,norm_u)
+norm=cbind(aids,norm_pre)
+p7b+geom_point(data=aids,aes(x=date,y=cases),color='orange')+geom_line(data=norm,aes(x=date,y=norm_l),color='red')+geom_line(data=norm,aes(x=date,y=norm_u),color='red')+theme(legend.position = "top")
+#AIC
+##MOdel1
+norm_m$aic
+##MOdel2
+pois_m$aic
+
+#As the AIC of model2 is smaller,so it's more preferable according to this.
+```
+
+```{r 1.7c}
+par(mfrow=c(2,2)) #one
+plot(pois_m)
+plot(norm_m)
+#The Residuals of model1 is smaller
+#rather than random scatter about the horizontal zero line.Perhaps we need to consider squared terms of date in the 2 models.
+```
+```{r 1.7(d)}
+fn_m1=glm(cases ~ date^2, family = gaussian(), data = aids)
+plot(fn_m1,which = 1)
+```
+
+```{r 1.7(d)2}
+fn_m2=glm(cases ~ (date^2), family = quasipoisson(link = 'log'), data = aids)
+plot(fn_m2,which = 1)
+```
+
+```{r 1.7(e)}
+summary(fn_m1)#AIC: 446.33  -4.756 
+
+summary(fn_m2)#AIC NA
+
+#final model1 in (d) I would choose as the best
+#As it has a low AIC
+```
+```{r 1.7f}
+library(MASS)
+fn_pois=glm.nb(cases ~ (date^2), data = aids)
+plot(fn_pois)
+#summary(fn_pois)
+#this model is did preferable to the other two,
+#for low Deviance Residuals ,and relatively low AIC
+```
+
+```{r 1.9}
+head(titanic)
+model=glm(survived~(age+pclass+gender)^2,family = binomial(),data=titanic)
+deviance(model)
+1-pchisq(deviance(model),model$df.residual)#The model fits
+summary(model)
+
+drop1(model,test="Chi")
+#all possibilities, AIC values are large,but p-value of  age:gender is higher than 0.05. So we reduce it .
+model_1=glm(survived~age*pclass+pclass*gender+(age^2)+(gender^2)+(pclass^2),family = binomial(),data=titanic)
+1-pchisq(deviance(model_1),model_1$df.residual)
+summary(model_1)
+plot(model_1)
+```
+#Co.        Pr(>|z|) ##############################
+#age        0.0204 *      negative and significant
+so the higher age had less chance to survive.
+#pclass3     3.08e-05 *** negative and significant
+so the passengers in pclass3 had less chance to survive.
+#gendermale  2.16e-11 *** negative and significant
+male had less chance to survive.
+#age:pclass2 0.0267 *     negative and significant
+old passengers on class2 had less chance to survive.
+#age:pclass3 0.0388 *     negative and significant
+old passengers on class2 had less chance to survive.
+#pclass3:gendermale 6.36e-05 ***   positive&significant
+male on class3 had less chance to survive.
+
+```{r 1.11}
+load('datasets.RData')
+
+bones$era=as.numeric(bones$Era)
+bones$era[bones$Era=='middle_saxon']=2
+bones$era[bones$Era=='late_saxon']=3
+bones$era[bones$Era=='high_medieval_']=4
+
+model11_1=glm(Nbone ~(Animal+Era+surface_geology), family = poisson(link = "log"), data = bones)
+
+1 - pchisq(model11_1$deviance,model11_1$df.residual)
+#it doesn't fit 
+#adjust
+```
+
+```{r 1.11a}
+model11_2=glm(Nbone ~(Animal+Era+surface_geology)^2, family = poisson(link = "log"), data = bones)
+1 - pchisq(model11_2$deviance,model11_2$df.residual)
+#better but not fit well
+drop1(model11_2,test="Chi")
+#all are significant
+plot(model11_2)
+#summary(model11_2)
+#bone number of pigs and sheep are negative and not significant 
+
+```
+Animalpigs        negative            ***
+Animalsheep      negative         ** 
+Erahigh_medieval_        negative       ***
+Eralate_saxon             negative        ***
+Eramiddle_saxon         negative              ***
+surface_geologyvalley_terrace   positive    ***
+Animalpigs:Erahigh_medieval_       positive     *  
+Animalsheep:Erahigh_medieval_  positive ***
+Animalsheep:surface_geologyvalley_terrace negative      ***
+Erahigh_medieval_:surface_geologyvalley_terrace negative ***
+Eralate_saxon:surface_geologyvalley_terrace negative    ***
+Eramiddle_saxon:surface_geologyvalley_terrace  positive * 
+
+
+```{r 1.13a}
+newgh=gehan[-which(gehan$cens==0),]
+gehan$treat <- relevel(gehan$treat, "control")
+
+model13 <- glm(time~treat,family=Gamma(link = 'log'),data=gehan)
+summary(model13,dispersion=1)
+#P_value
+1 - pchisq(model13$deviance,model13$df.residual)#The p-value is very big implying that the model is a good fit
+```
+###1.13b
+As the likelihood is$$L(\beta_0,\beta_1;y)=\prod_{i=1}^{n}p(y_i;\lambda_i)^{c_i}[Pr(Y>y_i;\lambda_i)]^{1-c_i}$$
+and $$p(y_i;\lambda_i)^{c_i}=\lambda_ie^{-\lambda_iy_i}$$
+
+SO we have$$L(\beta_0,\beta_1;y)=\prod_{i=1}^{n}\frac{(\lambda_iy_i)^{c_i}e^{-\lambda_iy_i}}{y_i^{c_i}}$$
+
+
+
+
+################1.13c#################
+$$\ell(c_i;\lambda_iy_i) = \prod_{i=1}^{n}\frac{(\lambda_iy_i)^{c_i}}{c_i}e^{-\lambda}$$
+$$C_i \sim Pois(\lambda_iy_i)$$
+
+```{r 1.13c}
+model13c=glm(cens~time*treat,family = poisson(link ='log'),data = gehan)
+summary(model13c)
+1 - pchisq(model13c$deviance,model13c$df.residual)
+#fit better than part(a)
+```
+Predictor treat6-MP has a positive significant effect on the inverse mean implying that taking the 6_MP reduces the mean remission time. So it's effective.
+
